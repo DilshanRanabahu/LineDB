@@ -1,7 +1,14 @@
+"""Use the storage engine directly from Python, without SQL.
+
+Run from the project root:  python examples/demo.py
+"""
 import os
 import shutil
+import sys
 
-from db import Database
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+from linedb import Database  # noqa: E402
 
 FOLDER = "data"
 

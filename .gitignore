@@ -1,4 +1,10 @@
 __pycache__/
 *.pyc
 *.tmp
+*.egg-info/
+.pytest_cache/
+.venv/
+
+# database folders created by the demo and the shell
 data/
+db_data/

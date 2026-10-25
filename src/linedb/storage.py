@@ -1,5 +1,8 @@
 import json
+import logging
 import os
+
+log = logging.getLogger(__name__)
 
 # Supported column types and the Python type each one maps to.
 TYPES = {"INT": int, "TEXT": str}
@@ -70,7 +73,7 @@ class Table:
                 try:
                     row = json.loads(line)
                 except json.JSONDecodeError:
-                    print(f"warning: corrupt line kept as-is in {self.path}")
+                    log.warning("corrupt line kept as-is in %s", self.path)
                     out.write(line + "\n")
                     continue
                 new_row = transform(row)
@@ -114,15 +117,15 @@ class Table:
                 try:
                     yield json.loads(line)
                 except json.JSONDecodeError:
-                    print(f"warning: corrupt line skipped in {self.path}")
+                    log.warning("corrupt line skipped in %s", self.path)
                     continue
 
     def select_where(self, column, value):
-        self._check_column(column)
+        self._check_values({column: value})
         return [r for r in self.select_all() if r.get(column) == value]
 
     def update(self, column, value, changes):
-        self._check_column(column)
+        self._check_values({column: value})
         self._check_values(changes)
 
         def transform(row):
@@ -133,7 +136,7 @@ class Table:
         return self._rewrite(transform)
 
     def delete(self, column, value):
-        self._check_column(column)
+        self._check_values({column: value})
 
         def transform(row):
             return None if row.get(column) == value else row
