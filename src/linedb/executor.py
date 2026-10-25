@@ -1,4 +1,18 @@
+from dataclasses import dataclass
+
 from .parser import parse
+
+
+@dataclass
+class Result:
+    """What a statement produced.
+
+    A SELECT fills in columns and rows; every other statement only has a
+    message such as "1 row inserted".
+    """
+    message: str = ""
+    columns: list = None
+    rows: list = None
 
 
 def _rows(count):
@@ -41,12 +55,12 @@ def _check_columns(table, names):
 
 def _create_table(db, statement):
     db.create_table(statement["table"], statement["columns"])
-    return f"Table '{statement['table']}' created"
+    return Result(f"Table '{statement['table']}' created")
 
 
 def _drop_table(db, statement):
     db.drop_table(statement["table"])
-    return f"Table '{statement['table']}' dropped"
+    return Result(f"Table '{statement['table']}' dropped")
 
 
 def _insert(db, statement):
@@ -59,7 +73,7 @@ def _insert(db, statement):
         )
     # values arrive in column order, so pair them up with the names
     table.insert(dict(zip(table.columns, values)))
-    return "1 row inserted"
+    return Result("1 row inserted")
 
 
 def _select(db, statement):
@@ -83,19 +97,23 @@ def _select(db, statement):
     if statement["limit"] is not None:
         rows = rows[:statement["limit"]]
 
-    return format_table(names, [[row[n] for n in names] for row in rows])
+    return Result(
+        _rows(len(rows)),
+        columns=list(names),
+        rows=[[row[n] for n in names] for row in rows],
+    )
 
 
 def _update(db, statement):
     table = db.table(statement["table"])
     count = table.update(statement["changes"], _where(statement))
-    return f"{_rows(count)} updated"
+    return Result(f"{_rows(count)} updated")
 
 
 def _delete(db, statement):
     table = db.table(statement["table"])
     count = table.delete(_where(statement))
-    return f"{_rows(count)} deleted"
+    return Result(f"{_rows(count)} deleted")
 
 
 HANDLERS = {
@@ -108,13 +126,18 @@ HANDLERS = {
 }
 
 
-def execute(db, sql):
-    """Parse one SQL statement and run it on the database.
-
-    Returns text describing the result.
-    """
+def run(db, sql):
+    """Parse one SQL statement, run it on the database, return a Result."""
     statement = parse(sql)
     handler = HANDLERS.get(statement["type"])
     if handler is None:
         raise ValueError(f"Cannot execute statement type: {statement['type']}")
     return handler(db, statement)
+
+
+def execute(db, sql):
+    """Like run(), but returns the result as text (used by the shell)."""
+    result = run(db, sql)
+    if result.columns is None:
+        return result.message
+    return format_table(result.columns, result.rows)
