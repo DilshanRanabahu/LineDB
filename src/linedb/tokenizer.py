@@ -3,10 +3,14 @@ from .storage import TYPES
 
 KEYWORDS = {
     "CREATE", "TABLE", "INSERT", "INTO", "VALUES",
-    "SELECT", "FROM", "WHERE", "UPDATE", "SET", "DELETE",
+    "SELECT", "FROM", "WHERE", "UPDATE", "SET", "DELETE", "DROP",
+    "ORDER", "BY", "ASC", "DESC", "LIMIT",
 } | set(TYPES)      # type names (INT, TEXT) are keywords too
 
-SYMBOLS = set("(),*=;")
+SYMBOLS = set("(),*=;<>")
+
+# two-character operators; '<>' is another way to write '!='
+TWO_CHAR_SYMBOLS = {"!=": "!=", "<>": "!=", "<=": "<=", ">=": ">="}
 
 
 def tokenize(sql):
@@ -26,13 +30,20 @@ def tokenize(sql):
             i += 1
             continue
 
-        # 2. single-character symbols: ( ) , * = ;
+        # 2. two-character operators: != <> <= >=
+        pair = sql[i:i + 2]
+        if pair in TWO_CHAR_SYMBOLS:
+            tokens.append(("SYMBOL", TWO_CHAR_SYMBOLS[pair]))
+            i += 2
+            continue
+
+        # 3. single-character symbols: ( ) , * = ; < >
         if ch in SYMBOLS:
             tokens.append(("SYMBOL", ch))
             i += 1
             continue
 
-        # 3. string literal: 'Kamal'  (a doubled '' inside means one quote)
+        # 4. string literal: 'Kamal'  (a doubled '' inside means one quote)
         if ch == "'":
             start = i
             i += 1
@@ -54,7 +65,7 @@ def tokenize(sql):
             tokens.append(("STRING", "".join(chars)))
             continue
 
-        # 4. number: 22 or -5
+        # 5. number: 22 or -5
         if ch.isdigit() or (ch == "-" and i + 1 < n and sql[i + 1].isdigit()):
             start = i
             i += 1
@@ -63,7 +74,7 @@ def tokenize(sql):
             tokens.append(("NUMBER", int(sql[start:i])))
             continue
 
-        # 5. word: keyword (SELECT) or identifier (users, name)
+        # 6. word: keyword (SELECT) or identifier (users, name)
         if ch.isalpha() or ch == "_":
             start = i
             while i < n and (sql[i].isalnum() or sql[i] == "_"):
@@ -75,7 +86,7 @@ def tokenize(sql):
                 tokens.append(("IDENT", word))
             continue
 
-        # 6. anything else is not valid SQL for us
+        # 7. anything else is not valid SQL for us
         raise SQLSyntaxError(f"Unexpected character {ch!r} at position {i}")
 
     return tokens

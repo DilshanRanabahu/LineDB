@@ -30,9 +30,10 @@ Without installing, run `python -m linedb` from the `src` folder.
 ```
 linedb> CREATE TABLE users (id INT, name TEXT, age INT);
 linedb> INSERT INTO users VALUES (1, 'Kamal', 22);
-linedb> SELECT name FROM users WHERE id = 1;
+linedb> SELECT name FROM users WHERE age > 20 ORDER BY age DESC LIMIT 5;
 linedb> UPDATE users SET age = 23 WHERE id = 1;
 linedb> DELETE FROM users WHERE id = 1;
+linedb> DROP TABLE users;
 ```
 
 Shell commands: `.tables`, `.schema [table]`, `.help`, `exit`.
@@ -40,10 +41,15 @@ Shell commands: `.tables`, `.schema [table]`, `.help`, `exit`.
 ## Supported SQL
 
 - `CREATE TABLE name (col INT|TEXT, ...)`
+- `DROP TABLE name`
 - `INSERT INTO name VALUES (value, ...)`
-- `SELECT * | col, ... FROM name [WHERE col = value]`
-- `UPDATE name SET col = value, ... WHERE col = value`
-- `DELETE FROM name WHERE col = value`
+- `SELECT * | col, ... FROM name [WHERE cond] [ORDER BY col [ASC|DESC], ...] [LIMIT n]`
+- `UPDATE name SET col = value, ... [WHERE cond]`
+- `DELETE FROM name [WHERE cond]`
+
+A condition is `col op value`, where `op` is one of `=`, `!=` (or `<>`),
+`<`, `<=`, `>`, `>=`. TEXT values compare alphabetically.
+Without a WHERE, UPDATE and DELETE change every row in the table.
 
 ## Tests
 

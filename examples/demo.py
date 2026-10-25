@@ -43,6 +43,6 @@ users2 = db2.table("users")
 print("schema after reopen:", users2.schema)
 print("rows after reopen:", list(users2.select_all()))
 
-print("updated:", users2.update("name", "Kamal", {"age": 23}))
-print("deleted:", users2.delete("id", 2))
+print("updated:", users2.update({"age": 23}, ("name", "=", "Kamal")))
+print("deleted:", users2.delete(("id", "=", 2)))
 print("final rows:", list(users2.select_all()))

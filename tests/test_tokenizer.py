@@ -32,8 +32,27 @@ def test_negative_number():
     ]
 
 
+def test_comparison_operators():
+    assert tokenize("= != <> < <= > >=") == [
+        ("SYMBOL", "="), ("SYMBOL", "!="), ("SYMBOL", "!="), ("SYMBOL", "<"),
+        ("SYMBOL", "<="), ("SYMBOL", ">"), ("SYMBOL", ">="),
+    ]
+    # no spaces needed, and a negative number right after an operator
+    assert tokenize("age>=-5") == [
+        ("IDENT", "age"), ("SYMBOL", ">="), ("NUMBER", -5),
+    ]
+
+
+def test_new_keywords():
+    assert tokenize("drop order by asc desc limit") == [
+        ("KEYWORD", word)
+        for word in ["DROP", "ORDER", "BY", "ASC", "DESC", "LIMIT"]
+    ]
+
+
 @pytest.mark.parametrize("sql, message", [
     ("SELECT # FROM users", "Unexpected character '#'"),
+    ("SELECT * FROM users WHERE id ! 1", "Unexpected character '!'"),
     ("INSERT INTO users VALUES ('abc", "Unterminated string"),
 ])
 def test_errors(sql, message):

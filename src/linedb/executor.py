@@ -23,11 +23,30 @@ def format_table(names, rows):
     return "\n".join([header, line] + body + [count])
 
 
+def _where(statement):
+    """The statement's WHERE as a (column, op, value) tuple, or None."""
+    where = statement["where"]
+    if where is None:
+        return None
+    return (where["column"], where["op"], where["value"])
+
+
+def _check_columns(table, names):
+    for name in names:
+        if name not in table.schema:
+            raise ValueError(f"Unknown column: {name}")
+
+
 # ---------- one function per statement type ----------
 
 def _create_table(db, statement):
     db.create_table(statement["table"], statement["columns"])
     return f"Table '{statement['table']}' created"
+
+
+def _drop_table(db, statement):
+    db.drop_table(statement["table"])
+    return f"Table '{statement['table']}' dropped"
 
 
 def _insert(db, statement):
@@ -46,38 +65,42 @@ def _insert(db, statement):
 def _select(db, statement):
     table = db.table(statement["table"])
 
-    # which columns to show
+    # which columns to show, and which ones to sort by
     names = statement["columns"] or table.columns
-    for name in names:
-        if name not in table.schema:
-            raise ValueError(f"Unknown column: {name}")
+    order_by = statement["order_by"]
+    _check_columns(table, names)
+    _check_columns(table, [item["column"] for item in order_by])
 
     # which rows to show
-    where = statement["where"]
-    if where:
-        rows = table.select_where(where["column"], where["value"])
-    else:
-        rows = table.select_all()
+    rows = table.select(_where(statement))
+
+    # Sort by the last key first. Python's sort is stable, so after the
+    # final pass the first ORDER BY column decides, and later ones break ties.
+    for item in reversed(order_by):
+        column = item["column"]
+        rows.sort(key=lambda row: row[column], reverse=item["descending"])
+
+    if statement["limit"] is not None:
+        rows = rows[:statement["limit"]]
 
     return format_table(names, [[row[n] for n in names] for row in rows])
 
 
 def _update(db, statement):
     table = db.table(statement["table"])
-    where = statement["where"]
-    count = table.update(where["column"], where["value"], statement["changes"])
+    count = table.update(statement["changes"], _where(statement))
     return f"{_rows(count)} updated"
 
 
 def _delete(db, statement):
     table = db.table(statement["table"])
-    where = statement["where"]
-    count = table.delete(where["column"], where["value"])
+    count = table.delete(_where(statement))
     return f"{_rows(count)} deleted"
 
 
 HANDLERS = {
     "create_table": _create_table,
+    "drop_table": _drop_table,
     "insert": _insert,
     "select": _select,
     "update": _update,
