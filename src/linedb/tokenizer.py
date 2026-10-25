@@ -1,14 +1,12 @@
+from .errors import SQLSyntaxError
+from .storage import TYPES
+
 KEYWORDS = {
     "CREATE", "TABLE", "INSERT", "INTO", "VALUES",
     "SELECT", "FROM", "WHERE", "UPDATE", "SET", "DELETE",
-    "INT", "TEXT",
-}
+} | set(TYPES)      # type names (INT, TEXT) are keywords too
 
 SYMBOLS = set("(),*=;")
-
-
-class SQLSyntaxError(ValueError):
-    """Raised when the SQL text cannot be understood."""
 
 
 def tokenize(sql):
