@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LineDB</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <span class="logo">LineDB</span>
+    <span class="folder" title="Database folder">{{ folder }}</span>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <h2>Tables</h2>
+        <button id="new-table" class="btn small">+ New</button>
+      </div>
+      <ul id="table-list" class="table-list"></ul>
+      <p id="no-tables" class="muted" hidden>No tables yet.</p>
+    </aside>
+
+    <main class="main">
+      <section class="editor">
+        <textarea id="sql" spellcheck="false" aria-label="SQL"
+                  placeholder="SELECT * FROM users WHERE age > 20 ORDER BY age DESC;"></textarea>
+        <div class="editor-bar">
+          <span class="muted">Ctrl+Enter to run. Separate statements with ;</span>
+          <button id="run" class="btn primary">Run</button>
+        </div>
+      </section>
+
+      <section id="output" class="output">
+        <div class="welcome">
+          <h2>Welcome</h2>
+          <p>Pick a table on the left, create one with <strong>+ New</strong>,
+             or type SQL above and press <strong>Run</strong>.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="row-dialog">
+    <form id="row-form">
+      <h3 id="row-title"></h3>
+      <div id="row-fields"></div>
+      <p id="row-note" class="muted"></p>
+      <p id="row-error" class="form-error" hidden></p>
+      <div class="dialog-buttons">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="table-dialog">
+    <form id="table-form">
+      <h3>New table</h3>
+      <label class="field">
+        <span>Table name</span>
+        <input id="new-table-name" autocomplete="off" placeholder="users">
+      </label>
+      <div class="field"><span>Columns</span></div>
+      <div id="column-rows"></div>
+      <button type="button" id="add-column" class="btn small">+ Add column</button>
+      <p id="table-error" class="form-error" hidden></p>
+      <div class="dialog-buttons">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

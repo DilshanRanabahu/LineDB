@@ -1,6 +1,15 @@
 import pytest
 
-from linedb import execute
+from linedb import Result, execute, run
+
+
+def test_run_returns_data(users_db):
+    assert run(users_db, "SELECT name FROM users WHERE age = 22") == Result(
+        "2 rows", columns=["name"], rows=[["Kamal"], ["Saman"]]
+    )
+    assert run(users_db, "DELETE FROM users WHERE id = 1") == Result(
+        "1 row deleted"
+    )
 
 
 def test_create_and_insert(db):

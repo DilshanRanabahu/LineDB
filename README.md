@@ -14,6 +14,7 @@ src/linedb/
     executor.py    runs a statement against a Database
     shell.py       interactive linedb> prompt
     errors.py      SQLSyntaxError
+    web/           Flask web UI (templates/index.html, static/style.css, static/app.js)
 tests/             pytest test suite
 examples/demo.py   using the storage engine directly from Python
 ```
@@ -37,6 +38,22 @@ linedb> DROP TABLE users;
 ```
 
 Shell commands: `.tables`, `.schema [table]`, `.help`, `exit`.
+
+## Web UI
+
+```
+python -m pip install flask            # or: pip install -e ".[web]"
+python -m linedb.web [folder]          # then open http://127.0.0.1:5000
+```
+
+Browse tables, add / edit / delete rows, create and drop tables, or type
+any SQL into the editor (Ctrl+Enter runs it). Every button shows the SQL it
+ran. Edit and Delete find a row by its first column, so give each row a
+unique first column such as `id`.
+
+The server only listens on 127.0.0.1 because there is no login. Do not run
+the web UI and the shell on the same folder at the same time: LineDB has no
+file locking between processes.
 
 ## Supported SQL
 

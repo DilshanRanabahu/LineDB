@@ -10,13 +10,18 @@ readme = "README.md"
 requires-python = ">=3.8"
 
 [project.optional-dependencies]
-dev = ["pytest"]
+web = ["flask>=2.2"]
+dev = ["pytest", "flask>=2.2"]
 
 [project.scripts]
 linedb = "linedb.shell:main"
+linedb-web = "linedb.web:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"linedb.web" = ["templates/*.html", "static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
