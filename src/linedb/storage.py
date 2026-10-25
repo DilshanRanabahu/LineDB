@@ -1,11 +1,22 @@
 import json
 import logging
+import operator
 import os
 
 log = logging.getLogger(__name__)
 
 # Supported column types and the Python type each one maps to.
 TYPES = {"INT": int, "TEXT": str}
+
+# Comparison operators allowed in a WHERE condition.
+OPERATORS = {
+    "=": operator.eq,
+    "!=": operator.ne,
+    "<": operator.lt,
+    "<=": operator.le,
+    ">": operator.gt,
+    ">=": operator.ge,
+}
 
 
 def _type_ok(type_name, value):
@@ -120,26 +131,48 @@ class Table:
                     log.warning("corrupt line skipped in %s", self.path)
                     continue
 
-    def select_where(self, column, value):
-        self._check_values({column: value})
-        return [r for r in self.select_all() if r.get(column) == value]
+    def _matcher(self, where):
+        """Turn a WHERE condition into a function row -> True/False.
 
-    def update(self, column, value, changes):
+        where is None (every row matches) or a (column, op, value) tuple,
+        for example ("age", ">", 20).
+        """
+        if where is None:
+            return lambda row: True
+        column, op, value = where
+        if op not in OPERATORS:
+            raise ValueError(f"Unknown operator: {op}")
         self._check_values({column: value})
+        compare = OPERATORS[op]
+        type_name = self.schema[column]
+
+        def matches(row):
+            cell = row.get(column)
+            # a cell with the wrong type (file edited by hand) never matches
+            return _type_ok(type_name, cell) and compare(cell, value)
+
+        return matches
+
+    def select(self, where=None):
+        matches = self._matcher(where)
+        return [r for r in self.select_all() if matches(r)]
+
+    def update(self, changes, where=None):
+        matches = self._matcher(where)
         self._check_values(changes)
 
         def transform(row):
-            if row.get(column) == value:
+            if matches(row):
                 return {**row, **changes}
             return row
 
         return self._rewrite(transform)
 
-    def delete(self, column, value):
-        self._check_values({column: value})
+    def delete(self, where=None):
+        matches = self._matcher(where)
 
         def transform(row):
-            return None if row.get(column) == value else row
+            return None if matches(row) else row
 
         return self._rewrite(transform)
 
@@ -188,6 +221,17 @@ class Database:
         self.tables[name] = Table(name, schema, self.folder)
         self._save_catalog()
         return self.tables[name]
+
+    def drop_table(self, name):
+        table = self.table(name)        # raises if there is no such table
+        # Delete the data before the catalog entry. If we crash in between,
+        # the table is still listed but empty; the other way round, an
+        # orphan file would come back on the next CREATE TABLE.
+        for path in (table.path, table.path + ".tmp"):
+            if os.path.exists(path):
+                os.remove(path)
+        del self.tables[name]
+        self._save_catalog()
 
     def table(self, name):
         if name not in self.tables:

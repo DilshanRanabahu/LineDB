@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from linedb import Database
@@ -26,9 +28,64 @@ def test_insert_keeps_schema_column_order(users):
 
 
 def test_update_and_delete(users):
-    assert users.update("name", "Kamal", {"age": 23}) == 1
-    assert users.delete("id", 2) == 1
+    assert users.update({"age": 23}, ("name", "=", "Kamal")) == 1
+    assert users.delete(("id", "=", 2)) == 1
     assert list(users.select_all()) == [{"id": 1, "name": "Kamal", "age": 23}]
+
+
+@pytest.mark.parametrize("where, ids", [
+    (None, [1, 2]),
+    (("age", "=", 25), [2]),
+    (("age", "!=", 25), [1]),
+    (("age", "<", 25), [1]),
+    (("age", "<=", 25), [1, 2]),
+    (("age", ">", 22), [2]),
+    (("age", ">=", 22), [1, 2]),
+    (("name", ">", "M"), [2]),          # TEXT compares alphabetically
+])
+def test_select_with_operators(users, where, ids):
+    assert [r["id"] for r in users.select(where)] == ids
+
+
+def test_update_and_delete_every_row(users):
+    assert users.update({"age": 1}) == 2
+    assert [r["age"] for r in users.select()] == [1, 1]
+    assert users.delete() == 2
+    assert users.select() == []
+
+
+@pytest.mark.parametrize("where, message", [
+    (("age", "~", 1), "Unknown operator"),
+    (("height", "=", 1), "Unknown column"),
+    (("age", ">", "old"), "expects INT"),
+])
+def test_bad_where(users, where, message):
+    with pytest.raises(ValueError, match=message):
+        users.select(where)
+
+
+def test_wrong_typed_cell_never_matches(users):
+    # a row edited by hand so 'age' is text: comparing must not crash
+    with open(users.path, "a", encoding="utf-8") as f:
+        f.write('{"id": 3, "name": "Odd", "age": "old"}\n')
+    assert [r["id"] for r in users.select(("age", ">", 0))] == [1, 2]
+
+
+def test_drop_table(db, users):
+    path = users.path
+    db.drop_table("users")
+    assert "users" not in db.tables
+    assert not os.path.exists(path)
+    assert "users" not in Database(db.folder).tables     # gone after reopen
+
+    # the name can be used again, and the old rows do not come back
+    db.create_table("users", {"id": "INT"})
+    assert db.table("users").select() == []
+
+
+def test_drop_missing_table(db):
+    with pytest.raises(ValueError, match="No such table"):
+        db.drop_table("nothing")
 
 
 @pytest.mark.parametrize("row", [
@@ -59,7 +116,7 @@ def test_corrupt_line_is_skipped_and_kept(users):
 
     # the next insert starts on a fresh line, and rewrites keep the bad line
     users.insert({"id": 3, "name": "Saman", "age": 30})
-    users.delete("id", 1)
+    users.delete(("id", "=", 1))
     assert [r["id"] for r in users.select_all()] == [2, 3]
     with open(users.path, encoding="utf-8") as f:
         assert '{"id": 9, "na\n' in f.read()

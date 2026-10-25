@@ -1,5 +1,5 @@
 from .errors import SQLSyntaxError
-from .storage import TYPES
+from .storage import OPERATORS, TYPES
 from .tokenizer import tokenize
 
 
@@ -72,6 +72,8 @@ class Parser:
             statement = self.parse_update()
         elif (kind, value) == ("KEYWORD", "DELETE"):
             statement = self.parse_delete()
+        elif (kind, value) == ("KEYWORD", "DROP"):
+            statement = self.parse_drop_table()
         else:
             raise SQLSyntaxError(f"Unsupported statement: {value!r}")
 
@@ -140,8 +142,8 @@ class Parser:
         return {"type": "insert", "table": table, "values": values}
 
     def parse_select(self):
-        # SELECT * FROM name [WHERE column = value]
-        # SELECT col, col FROM name [WHERE column = value]
+        # SELECT * FROM name [WHERE ...] [ORDER BY col [ASC|DESC], ...] [LIMIT n]
+        # SELECT col, col FROM name [WHERE ...] [ORDER BY ...] [LIMIT n]
         self.expect_keyword("SELECT")
 
         if self.peek() == ("SYMBOL", "*"):
@@ -158,17 +160,39 @@ class Parser:
 
         self.expect_keyword("FROM")
         table = self.expect_ident("a table name")
+        where = self.parse_optional_where()
 
-        where = None
-        if self.peek() == ("KEYWORD", "WHERE"):
+        order_by = []
+        if self.peek() == ("KEYWORD", "ORDER"):
             self.next()
-            where = self.parse_where()
+            self.expect_keyword("BY")
+            while True:
+                column = self.expect_ident("a column name")
+                descending = False
+                if self.peek() in (("KEYWORD", "ASC"), ("KEYWORD", "DESC")):
+                    descending = self.next()[1] == "DESC"
+                order_by.append({"column": column, "descending": descending})
+                if self.peek() == ("SYMBOL", ","):
+                    self.next()
+                    continue            # another sort column follows
+                break
+
+        limit = None
+        if self.peek() == ("KEYWORD", "LIMIT"):
+            self.next()
+            kind, value = self.next()
+            if kind != "NUMBER" or value < 0:
+                raise SQLSyntaxError(
+                    f"LIMIT needs a whole number of 0 or more, got "
+                    f"{self._show(kind, value)}"
+                )
+            limit = value
 
         return {"type": "select", "table": table, "columns": columns,
-                "where": where}
+                "where": where, "order_by": order_by, "limit": limit}
 
     def parse_update(self):
-        # UPDATE name SET col = value [, col = value ...] WHERE column = value
+        # UPDATE name SET col = value [, col = value ...] [WHERE ...]
         self.expect_keyword("UPDATE")
         table = self.expect_ident("a table name")
         self.expect_keyword("SET")
@@ -186,39 +210,43 @@ class Parser:
                 continue            # another assignment follows
             break
 
-        if self.peek() != ("KEYWORD", "WHERE"):
-            raise SQLSyntaxError(
-                "UPDATE needs a WHERE clause (updating every row is not "
-                "supported yet)"
-            )
-        self.next()
-        where = self.parse_where()
-
+        where = self.parse_optional_where()     # no WHERE: every row
         return {"type": "update", "table": table, "changes": changes,
                 "where": where}
 
     def parse_delete(self):
-        # DELETE FROM name WHERE column = value
+        # DELETE FROM name [WHERE ...]
         self.expect_keyword("DELETE")
         self.expect_keyword("FROM")
         table = self.expect_ident("a table name")
-
-        if self.peek() != ("KEYWORD", "WHERE"):
-            raise SQLSyntaxError(
-                "DELETE needs a WHERE clause (deleting every row is not "
-                "supported yet)"
-            )
-        self.next()
-        where = self.parse_where()
-
+        where = self.parse_optional_where()     # no WHERE: every row
         return {"type": "delete", "table": table, "where": where}
 
+    def parse_drop_table(self):
+        # DROP TABLE name
+        self.expect_keyword("DROP")
+        self.expect_keyword("TABLE")
+        table = self.expect_ident("a table name")
+        return {"type": "drop_table", "table": table}
+
+    def parse_optional_where(self):
+        """A WHERE condition if one comes next, otherwise None."""
+        if self.peek() != ("KEYWORD", "WHERE"):
+            return None
+        self.next()
+        return self.parse_where()
+
     def parse_where(self):
-        # column = value
+        # column op value, where op is one of = != < <= > >=
         column = self.expect_ident("a column name")
-        self.expect_symbol("=")
+        kind, op = self.next()
+        if kind != "SYMBOL" or op not in OPERATORS:
+            raise SQLSyntaxError(
+                f"Expected a comparison ({' '.join(OPERATORS)}), got "
+                f"{self._show(kind, op)}"
+            )
         value = self.parse_value()
-        return {"column": column, "value": value}
+        return {"column": column, "op": op, "value": value}
 
 
 def parse(sql):
